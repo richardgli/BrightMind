@@ -1,0 +1,6 @@
+langchain
+langgraph
+langchain-anthropic
+langchain-mcp-adapters
+fastapi
+uvicorn
