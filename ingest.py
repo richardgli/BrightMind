@@ -9,7 +9,7 @@ def get_embeddings():
 def build_vector_store(texts: list[str]) -> Chroma:
     documents = [Document(page_content=t) for t in texts]
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-    chunks = splitter.split_text(documents)
+    chunks = splitter.split_documents(documents)
 
     return Chroma.from_documents(
         documents=chunks,
