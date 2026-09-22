@@ -2,5 +2,9 @@ langchain
 langgraph
 langchain-anthropic
 langchain-mcp-adapters
+langchain-chroma
+langchain-huggingface
+langchain-text-splitters
+sentence-transformers
 fastapi
 uvicorn
