@@ -7,7 +7,7 @@ def get_retriever_tool():
     retriever = vector_store.as_retriever(search_kwargs={"k": 3})
 
     return create_retriever_tool(
-        retriver=retriever,
+        retriever=retriever,
         name="brightmind_knowledge",
         description="Search knowledge base. Use this tool for any question about the app's features, study material, or user notes."
     )
