@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
+from retriever import get_retriever_tool
 
 load_dotenv()
 
@@ -12,7 +13,9 @@ def get_agent_response():
         api_key=os.getenv("ANTHROPIC_API_KEY")
     )
 
-    agent = create_agent(model, tools=[])
+    tools = [get_retriever_tool()]
+
+    agent = create_agent(model, tools=tools)
 
     question = input("Question: ")
     input_query = {
