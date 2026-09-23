@@ -5,6 +5,7 @@ langchain-mcp-adapters
 langchain-chroma
 langchain-huggingface
 langchain-text-splitters
+pymupdf
 sentence-transformers
 fastapi
 uvicorn
