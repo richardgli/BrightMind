@@ -6,6 +6,7 @@ langchain-chroma
 langchain-huggingface
 langchain-text-splitters
 langchain-tavily
+langgraph-supervisor
 pymupdf
 sentence-transformers
 fastapi

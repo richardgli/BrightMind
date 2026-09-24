@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
+from langgraph_supervisor import create_supervisor
 from retriever import get_retriever_tool
 from web_search import get_web_search_tool
 
@@ -16,7 +17,29 @@ def get_agent_response():
 
     tools = [get_retriever_tool(), get_web_search_tool()]
 
-    agent = create_agent(model, tools=tools)
+    research_agent = create_agent(
+        model=model,
+        tools=tools,
+        name="research_agent",
+        system_prompt="You gather material from the knowledge base and the web. DO NOT write quizzes; only gather and summarize information."
+    )
+
+    quiz_agent = create_agent(
+        model=model,
+        tools=[],
+        name="quiz_agent",
+        system_prompt="You turn provided study material into quiz questions."
+    )
+
+    orchestrator_agent = create_supervisor(
+        [research_agent, quiz_agent],
+        model=model,
+        prompt=(
+            "Manage a research agent and a quiz agent.\n"
+            "For a quiz, ALWAYS call research_agent FIRST to gather material, THEN call quiz_agent."
+            "Never call quiz_agent before research_agent has returned material."
+        )
+    ).compile()
 
     question = input("Question: ")
     input_query = {
