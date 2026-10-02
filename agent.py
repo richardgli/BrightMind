@@ -3,12 +3,14 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
 from langgraph_supervisor import create_supervisor
+from langgraph.checkpoint.memory import MemorySaver
 from retriever import get_retriever_tool
 from web_search import get_web_search_tool
 
 load_dotenv()
 
-def get_agent_response():
+
+def build_agent():
     model = ChatAnthropic(
         model="claude-haiku-4-5-20251001",
         temperature=1,
@@ -16,7 +18,7 @@ def get_agent_response():
     )
 
     tools = [get_retriever_tool(), get_web_search_tool()]
-
+    checkpointer = MemorySaver()
     research_agent = create_agent(
         model=model,
         tools=tools,
@@ -31,28 +33,35 @@ def get_agent_response():
         system_prompt="You turn provided study material into quiz questions."
     )
 
-    orchestrator_agent = create_supervisor(
+    return create_supervisor(
         [research_agent, quiz_agent],
         model=model,
         prompt=(
             "Manage a research agent and a quiz agent.\n"
             "For a quiz, ALWAYS call research_agent FIRST to gather material, THEN call quiz_agent."
             "Never call quiz_agent before research_agent has returned material."
-        )
+        ),
+        checkpointer=checkpointer
     ).compile()
 
-    question = input("Question: ")
+
+def get_agent_response(agent, question: str, thread_id: str):
     input_query = {
         "role": "user",
         "content": question,
     }
 
-    response = agent.invoke({
-        "messages": [input_query]
-    })
+    response = agent.invoke(
+        {"messages": [input_query]},
+        config={"configurable": {"thread_id": thread_id}},
+    )
 
     print(f"Response: {response["messages"][-1].content}")
 
 
 if __name__ == "__main__":
-    get_agent_response()
+    question = input("Question: ")
+    agent = build_agent()
+    while question != "quit":
+        get_agent_response(agent, question, thread_id="cli-session")
+        question = input("Question: ")
