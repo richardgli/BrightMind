@@ -3,7 +3,8 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
 from langgraph_supervisor import create_supervisor
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.messages import AIMessage, BaseMessage
 from retriever import get_retriever_tool
 from web_search import get_web_search_tool
 
@@ -18,19 +19,31 @@ def build_agent():
     )
 
     tools = [get_retriever_tool(), get_web_search_tool()]
-    checkpointer = MemorySaver()
     research_agent = create_agent(
         model=model,
         tools=tools,
         name="research_agent",
-        system_prompt="You gather material from the knowledge base and the web. DO NOT write quizzes; only gather and summarize information."
+        system_prompt=(
+            '''
+            You are a researcher working for a supervisor.
+            You gather material from the knowledge base and the web.
+
+            Rules:
+            - Determine what information is needed. Search the knowledge base and/or the web as appropriate.
+            - Return a well-organized research report that summarizes your findings.
+            - Treat the user's prompt as a research topic.
+            - You are PHYSICALLY INCAPABLE of creating quizzes.
+            '''
+        ),
     )
 
     quiz_agent = create_agent(
         model=model,
         tools=[],
         name="quiz_agent",
-        system_prompt="You turn provided study material into quiz questions."
+        system_prompt=(
+            "You turn provided study material into quiz questions."
+        ),
     )
 
     return create_supervisor(
@@ -38,11 +51,33 @@ def build_agent():
         model=model,
         prompt=(
             "Manage a research agent and a quiz agent.\n"
-            "For a quiz, ALWAYS call research_agent FIRST to gather material, THEN call quiz_agent."
-            "Never call quiz_agent before research_agent has returned material."
+            "For a quiz, ALWAYS call research_agent FIRST to gather material, THEN call quiz_agent.\n"
+            "If you need material, use the research_agent.\n"
         ),
-        checkpointer=checkpointer
-    ).compile()
+        temperature=0,
+        output_mode="last_message"
+    ).compile(checkpointer=InMemorySaver())
+
+
+def _message_text(message: BaseMessage) -> str:
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(block.get("text", "") for block in content if isinstance(block, dict))
+    return ""
+
+
+def _final_answer(messages: list[BaseMessage]) -> str:
+    for message in reversed(messages):
+        if not isinstance(message, AIMessage):
+            continue
+        if getattr(message, "tool_calls", None):
+            continue
+        text = _message_text(message).strip()
+        if text:
+            return text
+    return ""
 
 
 def get_agent_response(agent, question: str, thread_id: str):
@@ -56,12 +91,12 @@ def get_agent_response(agent, question: str, thread_id: str):
         config={"configurable": {"thread_id": thread_id}},
     )
 
-    print(f"Response: {response["messages"][-1].content}")
+    print(f"Response: {_final_answer(response['messages'])}")
 
 
 if __name__ == "__main__":
     question = input("Question: ")
     agent = build_agent()
     while question != "quit":
-        get_agent_response(agent, question, thread_id="cli-session")
+        get_agent_response(agent, question, thread_id="test-session")
         question = input("Question: ")
