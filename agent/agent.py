@@ -8,9 +8,9 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, START, END
 
-from tools import get_retriever_tool, get_web_search_tool
-from state import State
-from agent_helper import final_answer
+from .tools import get_retriever_tool, get_web_search_tool
+from .state import State
+from helpers.message_formatter import final_answer
 
 load_dotenv()
 
@@ -65,7 +65,7 @@ def research(state):
     agent = create_agent(
         model=model,
         tools=tools,
-        name="research_agent",
+        name="research",
         system_prompt=RESEARCH_PROMPT,
     )
 
@@ -78,7 +78,7 @@ def quiz(state):
     agent = create_agent(
         model=model,
         tools=[],
-        name="quiz_agent",
+        name="quiz",
         system_prompt=QUIZ_PROMPT,
     )
 

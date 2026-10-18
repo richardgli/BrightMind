@@ -2,34 +2,10 @@ from __future__ import annotations
 
 import uuid
 from langchain_core.messages import AIMessage, BaseMessage
+from helpers.message_formatter import final_answer
 
 _HANDOFF_PREFIX = "transfer_to_"
 _REAL_TOOLS = {"brightmind_knowledge", "web_search", "tavily_search"}
-
-
-def _message_text(message: BaseMessage) -> str:
-    content = getattr(message, "content", "")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(
-            block.get("text", "")
-            for block in content
-            if isinstance(block, dict)
-        )
-    return ""
-
-
-def _final_answer(messages: list[BaseMessage]) -> str:
-    for message in reversed(messages):
-        if not isinstance(message, AIMessage):
-            continue
-        if getattr(message, "tool_calls", None):
-            continue
-        text = _message_text(message).strip()
-        if text:
-            return text
-    return ""
 
 
 def extract_trace(messages: list[BaseMessage]) -> dict:
@@ -62,7 +38,7 @@ def extract_trace(messages: list[BaseMessage]) -> dict:
                         route.append(name)
 
     return {
-        "answer": _final_answer(messages),
+        "answer": final_answer(messages),
         "route": route,
         "tools_used": tools_used,
         "messages": len(messages),

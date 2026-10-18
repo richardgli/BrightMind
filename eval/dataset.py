@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from langsmith import Client
 
-DATASET_NAME = "brightmind-baseline"
+DATASET_NAME = "brightmind-baseline-v2"
 DATASET_DESCRIPTION = (
     "BrightMind agent regression + quality eval. Routing order, retrieval "
     "grounding, and output shape. Source of truth lives in eval/dataset.py."

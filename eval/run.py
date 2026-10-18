@@ -45,7 +45,7 @@ def main() -> None:
         experiment_prefix=args.prefix,
         max_concurrency=args.max_concurrency,
         client=client,
-        metadata={"system": "supervisor", "judge": not args.no_judge},
+        metadata={"system": "stategraph", "judge": not args.no_judge},
     )
 
     print("\n=== Evaluation summary ===")
