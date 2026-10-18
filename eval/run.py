@@ -12,7 +12,7 @@ from eval.evaluators import DETERMINISTIC_EVALUATORS, ALL_EVALUATORS
 
 
 def get_baseline_agent():
-    from agent import build_stategraph
+    from agent.agent import build_stategraph
     return build_stategraph()
 
 

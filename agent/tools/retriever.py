@@ -1,5 +1,5 @@
 from langchain_core.tools.retriever import create_retriever_tool
-from ingest import load_vector_store
+from tools.ingest import load_vector_store
 
 def get_retriever_tool():
     vector_store = load_vector_store()
