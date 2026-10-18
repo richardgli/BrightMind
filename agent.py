@@ -5,12 +5,13 @@ from dotenv import load_dotenv
 
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
-from langgraph_supervisor import create_supervisor
-from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import AIMessage, BaseMessage
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import StateGraph, START, END
 
 from retriever import get_retriever_tool
 from web_search import get_web_search_tool
+from state import State
 
 load_dotenv()
 
@@ -30,6 +31,10 @@ RESEARCH_PROMPT = '''
     - Treat the user's prompt as a research topic.
 '''
 
+QUIZ_PROMPT = '''
+    You turn provided study material into quiz questions.
+'''
+
 model = ChatAnthropic(
     model=os.getenv("ANTHROPIC_MODEL"),
     temperature=1,
@@ -37,21 +42,21 @@ model = ChatAnthropic(
 )
 
 
-class Route(BaseModel):
+class RoutingDecision(BaseModel):
     plan: list[str] = Field(description="subtasks for the goal")
     next: Literal["research", "quiz", "FINISH"]
     reasoning: str
 
 
 def orchestrator(state):
-    router = model.with_structured_output(Route)
+    if state.get("step_count", 0) > 5:
+        return {"next": "FINISH", "plan": [""], "step_count": state.get("step_count", 0) + 1}
+
+    router = model.with_structured_output(RoutingDecision)
     decision = router.invoke([
         {"role": "system", "content": ORCH_PROMPT},
         *state["messages"],
     ])
-
-    if state.get("step_count", 0) > 5:
-        return {"next": "FINISH", "plan": decision.plan, "step_count": state.get("step_count", 0) + 1}
 
     return {"next": decision.next, "plan": decision.plan, "step_count": state.get("step_count", 0) + 1}
 
@@ -72,46 +77,22 @@ def research(state):
             "next": "orchestrator"}
 
 
-def build_agent():
-    tools = [get_retriever_tool(), get_web_search_tool()]
-    research_agent = create_agent(
-        model=model,
-        tools=tools,
-        name="research_agent",
-        system_prompt=(
-            '''
-            You are a researcher working for a supervisor.
-            You gather material from the knowledge base and the web.
-
-            Rules:
-            - Determine what information is needed. Search the knowledge base and/or the web as appropriate.
-            - Return a well-organized research report that summarizes your findings.
-            - Treat the user's prompt as a research topic.
-            - You are PHYSICALLY INCAPABLE of creating quizzes.
-            '''
-        ),
-    )
-
-    quiz_agent = create_agent(
+def quiz(state):
+    agent = create_agent(
         model=model,
         tools=[],
         name="quiz_agent",
-        system_prompt=(
-            "You turn provided study material into quiz questions."
-        ),
+        system_prompt=QUIZ_PROMPT,
     )
 
-    return create_supervisor(
-        [research_agent, quiz_agent],
-        model=model,
-        prompt=(
-            "Manage a research agent and a quiz agent.\n"
-            "For a quiz, ALWAYS call research_agent FIRST to gather material, THEN call quiz_agent.\n"
-            "If you need material, use the research_agent.\n"
-        ),
-        temperature=0,
-        output_mode="last_message"
-    ).compile(checkpointer=InMemorySaver())
+    res = agent.invoke({"messages": [state["research_material"]]})
+    return {"quiz": res["messages"][-1],
+            "messages": [res["messages"][-1]],
+            "next": "orchestrator"}
+
+
+def route(state):
+    return state["next"]
 
 
 def _message_text(message: BaseMessage) -> str:
@@ -149,9 +130,28 @@ def get_agent_response(agent, question: str, thread_id: str):
     print(f"Response: {_final_answer(response['messages'])}")
 
 
+def build_stategraph():
+    g = StateGraph(State)
+
+    g.add_node("orchestrator", orchestrator)
+    g.add_node("research", research)
+    g.add_node("quiz", quiz)
+
+    g.add_edge(START, "orchestrator")
+    
+    g.add_conditional_edges("orchestrator", route, {
+        "research": "research", "quiz": "quiz", "FINISH": END
+    })
+
+    for node in ["research", "quiz"]:
+        g.add_edge(node, "orchestrator")
+
+    return g.compile(checkpointer=InMemorySaver())
+
+
 if __name__ == "__main__":
     question = input("Question: ")
-    agent = build_agent()
+    agent = build_stategraph()
     while question != "quit":
         get_agent_response(agent, question, thread_id="test-session")
         question = input("Question: ")
