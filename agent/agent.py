@@ -71,7 +71,9 @@ def research(state):
 
     res = agent.invoke({"messages": state["messages"]})
     material = res["messages"][-1].content
-    return {"research_material": material, "messages": [res["messages"][-1]]}
+    input_ids = {id(m) for m in state["messages"]}
+    new_messages = [m for m in res["messages"] if id(m) not in input_ids]
+    return {"research_material": material, "messages": new_messages}
 
 
 def quiz(state):

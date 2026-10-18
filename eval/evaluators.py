@@ -50,19 +50,56 @@ def retrieval_grounding(run, example) -> dict:
     }
 
 
-_QUESTION_RE = re.compile(r"\?|question\s*\d|q\d\b", re.IGNORECASE)
+_QUIZ_MIN_QUESTIONS = 2
+# A line that STARTS as a numbered/labeled item: "1.", "2)", "Q3", "Question 4".
+_ITEM_START_RE = re.compile(r"^\s*(?:q(?:uestion)?\s*)?\d+\s*[.)]", re.IGNORECASE)
+_INTERROGATIVE_RE = re.compile(
+    r"^\s*(?:who|what|when|where|why|how|which|whose|whom|"
+    r"is|are|was|were|do|does|did|can|could|would|should|will|"
+    r"name|define|describe|explain|list|state|identify|calculate|"
+    r"true or false|which of)\b",
+    re.IGNORECASE,
+)
+_QLABEL_RE = re.compile(r"\bquestion\s*\d|\bq\d\b", re.IGNORECASE)
+
+
+def _is_question_line(line: str) -> bool:
+    """A line counts as a quiz question only if it is actually interrogative."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    # Remove a leading "1." / "2)" / "Q3." / "Question 4:" marker, if present.
+    body = _ITEM_START_RE.sub("", stripped).lstrip(" :.-")
+    if body.endswith("?"):
+        return True
+    return bool(_INTERROGATIVE_RE.match(body))
+
+
+def _count_questions(text: str) -> int:
+    """Count genuine quiz questions."""
+    lines = text.splitlines()
+    interrogative_lines = sum(1 for line in lines if _is_question_line(line))
+    labeled = len(_QLABEL_RE.findall(text))
+    return max(interrogative_lines, labeled)
 
 
 def quiz_shape(run, example) -> dict:
     expect = _reference(example).get("expect_quiz", False)
     answer = _outputs(run).get("answer", "") or ""
-    looks_like_quiz = bool(_QUESTION_RE.search(answer))
+    n_questions = _count_questions(answer)
+    looks_like_quiz = n_questions >= _QUIZ_MIN_QUESTIONS
     if expect:
         passed = looks_like_quiz
-        comment = "expected quiz; " + ("found questions" if passed else "no questions found")
+        comment = (
+            f"expected quiz; detected {n_questions} question(s) "
+            f"(need >={_QUIZ_MIN_QUESTIONS})"
+        )
     else:
         passed = not looks_like_quiz
-        comment = "expected non-quiz; " + ("passed" if passed else "unexpectedly quiz-shaped")
+        comment = (
+            f"expected non-quiz; detected {n_questions} question(s) "
+            + ("passed" if passed else "unexpectedly quiz-shaped")
+        )
     return {"key": "quiz_shape", "score": int(passed), "comment": comment}
 
 
