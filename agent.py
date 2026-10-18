@@ -5,13 +5,13 @@ from dotenv import load_dotenv
 
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, START, END
 
 from retriever import get_retriever_tool
 from web_search import get_web_search_tool
 from state import State
+from agent_helper import final_answer
 
 load_dotenv()
 
@@ -72,9 +72,7 @@ def research(state):
 
     res = agent.invoke({"messages": state["messages"]})
     material = res["messages"][-1].content
-    return {"research_material": material,
-            "messages": [res["messages"][-1]],
-            "next": "orchestrator"}
+    return {"research_material": material, "messages": [res["messages"][-1]]}
 
 
 def quiz(state):
@@ -85,35 +83,15 @@ def quiz(state):
         system_prompt=QUIZ_PROMPT,
     )
 
-    res = agent.invoke({"messages": [state["research_material"]]})
-    return {"quiz": res["messages"][-1],
-            "messages": [res["messages"][-1]],
-            "next": "orchestrator"}
+    res = agent.invoke({
+        "messages": [{"role": "user", "content": state["research_material"]}]
+    })
+    material = res["messages"][-1].content
+    return {"quiz": material, "messages": [res["messages"][-1]]}
 
 
 def route(state):
     return state["next"]
-
-
-def _message_text(message: BaseMessage) -> str:
-    content = getattr(message, "content", "")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(block.get("text", "") for block in content if isinstance(block, dict))
-    return ""
-
-
-def _final_answer(messages: list[BaseMessage]) -> str:
-    for message in reversed(messages):
-        if not isinstance(message, AIMessage):
-            continue
-        if getattr(message, "tool_calls", None):
-            continue
-        text = _message_text(message).strip()
-        if text:
-            return text
-    return ""
 
 
 def get_agent_response(agent, question: str, thread_id: str):
@@ -127,7 +105,7 @@ def get_agent_response(agent, question: str, thread_id: str):
         config={"configurable": {"thread_id": thread_id}},
     )
 
-    print(f"Response: {_final_answer(response['messages'])}")
+    print(f"Response: {final_answer(response['messages'])}")
 
 
 def build_stategraph():

@@ -12,14 +12,14 @@ CASES: list[dict] = [
     # --- Routing: quiz requests must research first, then quiz ---
     {
         "question": "Make me a 3-question quiz on binary search trees.",
-        "expected_route": ["research_agent", "quiz_agent"],
+        "expected_route": ["research", "quiz"],
         "require_retrieval": True,
         "expect_quiz": True,
         "forbid_route": [],
     },
     {
         "question": "Quiz me on the attention mechanism in transformers.",
-        "expected_route": ["research_agent", "quiz_agent"],
+        "expected_route": ["research", "quiz"],
         "require_retrieval": True,
         "expect_quiz": True,
         "forbid_route": [],
@@ -27,22 +27,22 @@ CASES: list[dict] = [
     # --- Routing: explanation requests should research, not quiz ---
     {
         "question": "Explain how a hash table handles collisions.",
-        "expected_route": ["research_agent"],
+        "expected_route": ["research"],
         "require_retrieval": True,
         "expect_quiz": False,
-        "forbid_route": ["quiz_agent"],
+        "forbid_route": ["quiz"],
     },
     {
         "question": "Summarize the key idea of self-attention.",
-        "expected_route": ["research_agent"],
+        "expected_route": ["research"],
         "require_retrieval": True,
         "expect_quiz": False,
-        "forbid_route": ["quiz_agent"],
+        "forbid_route": ["quiz"],
     },
     # --- Output shape: a quiz must contain questions ---
     {
         "question": "Give me 2 practice questions about pointers in C.",
-        "expected_route": ["research_agent", "quiz_agent"],
+        "expected_route": ["research", "quiz"],
         "require_retrieval": True,
         "expect_quiz": True,
         "forbid_route": [],
