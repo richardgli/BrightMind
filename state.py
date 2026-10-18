@@ -1,4 +1,4 @@
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 from typing_extensions import TypedDict
 from langchain_core.messages import BaseMessage
 from langgraph.graph import add_messages
@@ -14,6 +14,7 @@ class State(TypedDict, total=False):
 
 def main():
     from langgraph.graph import StateGraph, START, END
+
     def hello(state):
         return {"messages": [("ai", "hi")]}
 

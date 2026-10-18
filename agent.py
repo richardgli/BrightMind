@@ -1,23 +1,78 @@
 import os
+from typing import Literal
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
 from langgraph_supervisor import create_supervisor
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import AIMessage, BaseMessage
+
 from retriever import get_retriever_tool
 from web_search import get_web_search_tool
 
 load_dotenv()
 
+ORCH_PROMPT = '''
+    You are a study assistant.\n
+    For a quiz, route to research FIRST, THEN route to quiz.\n
+    If you need material, use the research.\n
+'''
 
-def build_agent():
-    model = ChatAnthropic(
-        model="claude-haiku-4-5-20251001",
-        temperature=1,
-        api_key=os.getenv("ANTHROPIC_API_KEY")
+RESEARCH_PROMPT = '''
+    You are a researcher working for a supervisor.
+    You gather material from the knowledge base and the web.
+
+    Rules:
+    - Determine what information is needed. Always search the knowledge base first; use web search for supplementary context.
+    - Return a summary of your findings.
+    - Treat the user's prompt as a research topic.
+'''
+
+model = ChatAnthropic(
+    model=os.getenv("ANTHROPIC_MODEL"),
+    temperature=1,
+    api_key=os.getenv("ANTHROPIC_API_KEY")
+)
+
+
+class Route(BaseModel):
+    plan: list[str] = Field(description="subtasks for the goal")
+    next: Literal["research", "quiz", "FINISH"]
+    reasoning: str
+
+
+def orchestrator(state):
+    router = model.with_structured_output(Route)
+    decision = router.invoke([
+        {"role": "system", "content": ORCH_PROMPT},
+        *state["messages"],
+    ])
+
+    if state.get("step_count", 0) > 5:
+        return {"next": "FINISH", "plan": decision.plan, "step_count": state.get("step_count", 0) + 1}
+
+    return {"next": decision.next, "plan": decision.plan, "step_count": state.get("step_count", 0) + 1}
+
+
+def research(state):
+    tools = [get_retriever_tool(), get_web_search_tool()]
+    agent = create_agent(
+        model=model,
+        tools=tools,
+        name="research_agent",
+        system_prompt=RESEARCH_PROMPT,
     )
 
+    res = agent.invoke({"messages": state["messages"]})
+    material = res["messages"][-1].content
+    return {"research_material": material,
+            "messages": [res["messages"][-1]],
+            "next": "orchestrator"}
+
+
+def build_agent():
     tools = [get_retriever_tool(), get_web_search_tool()]
     research_agent = create_agent(
         model=model,

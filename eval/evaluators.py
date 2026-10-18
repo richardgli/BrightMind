@@ -80,7 +80,7 @@ def faithfulness(run, example) -> dict:
         return {"key": "faithfulness", "score": 0, "comment": "empty answer"}
 
     judge = ChatAnthropic(
-        model="claude-haiku-4-5-20251001",
+        model=os.getenv("ANTHROPIC_MODEL"),
         temperature=0,
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
