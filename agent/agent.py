@@ -3,20 +3,21 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
+from langchain_core.messages import AIMessage
 from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph, START, END
 
 from .tools import get_retriever_tool, get_web_search_tool
-from .state import State
+from .schema import State, Quiz
 from helpers.message_formatter import final_answer
 
 load_dotenv()
 
 ORCH_PROMPT = '''
     You are a study assistant.\n
-    For a quiz, route to research FIRST, THEN route to quiz.\n
+    If the user asks for a quiz, route to research FIRST, THEN route to quiz.\n
     If you need material, use the research.\n
 '''
 
@@ -27,7 +28,7 @@ RESEARCH_PROMPT = '''
     Rules:
     - Determine what information is needed. Always search the knowledge base first; use web search for supplementary context.
     - Return a summary of your findings.
-    - Treat the user's prompt as a research topic.
+    - Do NOT write the quiz questions.
 '''
 
 QUIZ_PROMPT = '''
@@ -36,7 +37,7 @@ QUIZ_PROMPT = '''
 
 model = ChatAnthropic(
     model=os.getenv("ANTHROPIC_MODEL"),
-    temperature=1,
+    temperature=0,
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 
@@ -69,26 +70,39 @@ def research(state):
         system_prompt=RESEARCH_PROMPT,
     )
 
-    res = agent.invoke({"messages": state["messages"]})
+    topic = state["messages"][0].content
+    task = f"Research and summarize study material on this topic: {topic}"
+
+    res = agent.invoke({"messages": [{"role": "user", "content": task}]})
     material = res["messages"][-1].content
     input_ids = {id(m) for m in state["messages"]}
     new_messages = [m for m in res["messages"] if id(m) not in input_ids]
     return {"research_material": material, "messages": new_messages}
 
 
-def quiz(state):
-    agent = create_agent(
-        model=model,
-        tools=[],
-        name="quiz",
-        system_prompt=QUIZ_PROMPT,
-    )
+def _render_quiz(quiz: "Quiz") -> str:
+    """Render structured Quiz into markdown."""
+    lines = [f"# Quiz: {quiz.topic}", ""]
+    for i, q in enumerate(quiz.questions, start=1):
+        lines.append(f"**Question {i}** ({q.difficulty}): {q.question}")
+        for j, choice in enumerate(q.choices):
+            label = chr(ord("a") + j)
+            lines.append(f"   {label}) {choice}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
-    res = agent.invoke({
-        "messages": [{"role": "user", "content": state["research_material"]}]
-    })
-    material = res["messages"][-1].content
-    return {"quiz": material, "messages": [res["messages"][-1]]}
+
+def quiz(state):
+    quiz_agent = model.with_structured_output(Quiz)
+    res = quiz_agent.invoke([
+        {"role": "system", "content": QUIZ_PROMPT},
+        {"role": "user", "content":
+        f"Create quiz questions from this study material:\n\n{state['research_material']}"},
+    ])
+    rendered = _render_quiz(res)
+    return {"quiz": res.model_dump(),
+            "messages": [AIMessage(content=rendered, name="quiz")],
+    }
 
 
 def route(state):

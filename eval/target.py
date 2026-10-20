@@ -8,7 +8,7 @@ _HANDOFF_PREFIX = "transfer_to_"
 _REAL_TOOLS = {"brightmind_knowledge", "web_search", "tavily_search"}
 
 
-def extract_trace(messages: list[BaseMessage]) -> dict:
+def extract_trace(state: dict) -> dict:
     """Derive route + tools_used from a message list.
 
     Works for the supervisor (routing via 'transfer_to_*' tool calls) and is
@@ -16,6 +16,7 @@ def extract_trace(messages: list[BaseMessage]) -> dict:
     """
     route: list[str] = []
     tools_used: list[str] = []
+    messages = state.get("messages", [])
 
     for m in messages:
         tcs = getattr(m, "tool_calls", None) or []
@@ -42,6 +43,7 @@ def extract_trace(messages: list[BaseMessage]) -> dict:
         "route": route,
         "tools_used": tools_used,
         "messages": len(messages),
+        "quiz": state.get("quiz"),
     }
 
 
@@ -55,6 +57,6 @@ def make_target(agent):
             {"messages": [{"role": "user", "content": question}]},
             config={"configurable": {"thread_id": thread_id}},
         )
-        return extract_trace(result["messages"])
+        return extract_trace(result)
 
     return target
