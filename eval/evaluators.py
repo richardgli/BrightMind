@@ -75,33 +75,29 @@ def _is_question_line(line: str) -> bool:
     return bool(_INTERROGATIVE_RE.match(body))
 
 
+def _question_lines(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if _is_question_line(line)]
+
+
 def _count_questions(text: str) -> int:
     """Count genuine quiz questions."""
-    lines = text.splitlines()
-    interrogative_lines = sum(1 for line in lines if _is_question_line(line))
+    interrogative_lines = len(_question_lines(text))
     labeled = len(_QLABEL_RE.findall(text))
     return max(interrogative_lines, labeled)
 
 
 def quiz_shape(run, example) -> dict:
     expect = _reference(example).get("expect_quiz", False)
-    answer = _outputs(run).get("answer", "") or ""
-    n_questions = _count_questions(answer)
-    looks_like_quiz = n_questions >= _QUIZ_MIN_QUESTIONS
-    if expect:
-        passed = looks_like_quiz
-        comment = (
-            f"expected quiz; detected {n_questions} question(s) "
-            f"(need >={_QUIZ_MIN_QUESTIONS})"
-        )
+    output = _outputs(run)
+    quiz = output.get("quiz")
+    if quiz is not None:
+        n = len(quiz.get("questions", []))
     else:
-        passed = not looks_like_quiz
-        comment = (
-            f"expected non-quiz; detected {n_questions} question(s) "
-            + ("passed" if passed else "unexpectedly quiz-shaped")
-        )
-    return {"key": "quiz_shape", "score": int(passed), "comment": comment}
-
+        n = _count_questions(output.get("answer", "") or "")
+    is_quiz = n >= 1
+    passed = is_quiz if expect else not is_quiz
+    return {"key": "quiz_shape", "score": int(passed),
+            "comment": f"questions={n} source={'structured' if quiz is not None else 'text'}"}
 
 def faithfulness(run, example) -> dict:
     """LLM-as-judge: is the answer coherent and non-fabricated for the question?
