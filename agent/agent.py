@@ -66,7 +66,8 @@ def orchestrator(state):
     router = model.with_structured_output(RoutingDecision)
     decision = router.invoke([
         {"role": "system", "content": ORCH_PROMPT},
-        *state["messages"],
+        # *state["messages"],
+        {"role": "user", "content": state["messages"][0].content},
         {"role": "user", "content": status},
     ])
 
