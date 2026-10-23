@@ -44,6 +44,7 @@ def extract_trace(state: dict) -> dict:
         "tools_used": tools_used,
         "messages": len(messages),
         "quiz": state.get("quiz"),
+        "structured": "quiz" in state,
     }
 
 

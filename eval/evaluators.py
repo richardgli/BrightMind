@@ -89,15 +89,23 @@ def _count_questions(text: str) -> int:
 def quiz_shape(run, example) -> dict:
     expect = _reference(example).get("expect_quiz", False)
     output = _outputs(run)
-    quiz = output.get("quiz")
-    if quiz is not None:
-        n = len(quiz.get("questions", []))
+
+    if output.get("structured"):
+        quiz = output.get("quiz")
+        n = len(quiz.get("questions", [])) if quiz else 0
+        source = "structured"
     else:
         n = _count_questions(output.get("answer", "") or "")
-    is_quiz = n >= 1
+        source = "text"
+
+    threshold = 1 if source == "structured" else _QUIZ_MIN_QUESTIONS
+    is_quiz = n >= threshold
     passed = is_quiz if expect else not is_quiz
-    return {"key": "quiz_shape", "score": int(passed),
-            "comment": f"questions={n} source={'structured' if quiz is not None else 'text'}"}
+    return {
+        "key": "quiz_shape",
+        "score": int(passed),
+        "comment": f"questions={n} source={source} threshold={threshold}",
+    }
 
 def faithfulness(run, example) -> dict:
     """LLM-as-judge: is the answer coherent and non-fabricated for the question?
