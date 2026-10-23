@@ -20,8 +20,7 @@ ORCH_PROMPT = '''
 
     Rules:
     - If the user asks for a quiz, route to research FIRST, THEN route to quiz.
-    - If you need material, use the research.
-    - If the user is asking for an explanation, DO NOT ROUTE TO quiz.
+    - If the user is asking for an explanation or a summary, DO NOT ROUTE TO quiz.
     - NEVER REPEAT A STEP WHOSE RESULT ALREADY EXISTS IN THE STATUS.
 '''
 
@@ -58,12 +57,12 @@ def orchestrator(state):
     if state.get("step_count", 0) > 5:
         return {"next": "FINISH", "plan": [""], "step_count": state.get("step_count", 0) + 1}
 
+    # Deterministic stop (subject to change)
+    if state.get("quiz"):
+        return {"next": "FINISH", "plan": state.get("plan", []), "step_count": state.get("step_count", 0) + 1}
+
     has_material = bool(state.get("research_material"))
-    has_quiz = bool(state.get("quiz"))
-    status = f'''
-        Progress so far: research_material_gathered={has_material},
-        quiz_generated={has_quiz}.
-    '''
+    status = f"Progress so far: research_material_gathered={has_material}, quiz_generated=False"
     router = model.with_structured_output(RoutingDecision)
     decision = router.invoke([
         {"role": "system", "content": ORCH_PROMPT},
@@ -71,7 +70,7 @@ def orchestrator(state):
         {"role": "user", "content": status},
     ])
 
-    return {"next": decision.next, "plan": decision.plan, "status": status, "step_count": state.get("step_count", 0) + 1}
+    return {"next": decision.next, "plan": decision.plan, "step_count": state.get("step_count", 0) + 1}
 
 
 def _get_research_agent():
