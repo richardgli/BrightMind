@@ -13,3 +13,6 @@ def get_retriever_tool():
         name="brightmind_knowledge",
         description="Search knowledge base. Use this tool for any question about the app's features, study material, or user notes."
     )
+
+# To warm the cache at import time
+_ = get_retriever_tool()
