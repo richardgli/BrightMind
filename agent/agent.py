@@ -35,6 +35,8 @@ QUIZ_PROMPT = '''
     You turn provided study material into quiz questions.
 '''
 
+_RESEARCH_AGENT = None
+
 model = ChatAnthropic(
     model=os.getenv("ANTHROPIC_MODEL"),
     temperature=0,
@@ -61,14 +63,21 @@ def orchestrator(state):
     return {"next": decision.next, "plan": decision.plan, "step_count": state.get("step_count", 0) + 1}
 
 
+def _get_research_agent():
+    global _RESEARCH_AGENT
+    if _RESEARCH_AGENT is None:
+        tools = [get_retriever_tool(), get_web_search_tool()]
+        _RESEARCH_AGENT = create_agent(
+            model=model,
+            tools=tools,
+            name="research",
+            system_prompt=RESEARCH_PROMPT
+        )
+    return _RESEARCH_AGENT
+
+
 def research(state):
-    tools = [get_retriever_tool(), get_web_search_tool()]
-    agent = create_agent(
-        model=model,
-        tools=tools,
-        name="research",
-        system_prompt=RESEARCH_PROMPT,
-    )
+    agent = _get_research_agent()
 
     topic = state["messages"][0].content
     task = f"Research and summarize study material on this topic: {topic}"

@@ -1,6 +1,8 @@
+from functools import lru_cache
 from langchain_core.tools.retriever import create_retriever_tool
 from .ingest import load_vector_store
 
+@lru_cache(maxsize=1)
 def get_retriever_tool():
     vector_store = load_vector_store()
 
