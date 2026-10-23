@@ -16,9 +16,13 @@ from helpers.message_formatter import final_answer
 load_dotenv()
 
 ORCH_PROMPT = '''
-    You are a study assistant.\n
-    If the user asks for a quiz, route to research FIRST, THEN route to quiz.\n
-    If you need material, use the research.\n
+    You are a study assistant orchestrator.
+
+    Rules:
+    - If the user asks for a quiz, route to research FIRST, THEN route to quiz.
+    - If you need material, use the research.
+    - If the user is asking for an explanation, DO NOT ROUTE TO quiz.
+    - NEVER REPEAT A STEP WHOSE RESULT ALREADY EXISTS IN THE STATUS.
 '''
 
 RESEARCH_PROMPT = '''
@@ -45,7 +49,7 @@ model = ChatAnthropic(
 
 
 class RoutingDecision(BaseModel):
-    plan: list[str] = Field(description="subtasks for the goal")
+    plan: list[str] = Field(description="subtasks for the goal ONLY IF goal has not been accomplished yet")
     next: Literal["research", "quiz", "FINISH"]
     reasoning: str
 
@@ -54,13 +58,20 @@ def orchestrator(state):
     if state.get("step_count", 0) > 5:
         return {"next": "FINISH", "plan": [""], "step_count": state.get("step_count", 0) + 1}
 
+    has_material = bool(state.get("research_material"))
+    has_quiz = bool(state.get("quiz"))
+    status = f'''
+        Progress so far: research_material_gathered={has_material},
+        quiz_generated={has_quiz}.
+    '''
     router = model.with_structured_output(RoutingDecision)
     decision = router.invoke([
         {"role": "system", "content": ORCH_PROMPT},
         *state["messages"],
+        {"role": "user", "content": status},
     ])
 
-    return {"next": decision.next, "plan": decision.plan, "step_count": state.get("step_count", 0) + 1}
+    return {"next": decision.next, "plan": decision.plan, "status": status, "step_count": state.get("step_count", 0) + 1}
 
 
 def _get_research_agent():
