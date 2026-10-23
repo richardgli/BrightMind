@@ -36,7 +36,7 @@ def main() -> None:
 
     evaluators = DETERMINISTIC_EVALUATORS if args.no_judge else ALL_EVALUATORS
     agent = get_baseline_agent()
-    target = make_target(agent)
+    target = make_target(agent, structured=True)
 
     results = evaluate(
         target,

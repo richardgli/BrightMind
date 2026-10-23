@@ -44,11 +44,10 @@ def extract_trace(state: dict) -> dict:
         "tools_used": tools_used,
         "messages": len(messages),
         "quiz": state.get("quiz"),
-        "structured": "quiz" in state,
     }
 
 
-def make_target(agent):
+def make_target(agent, structured: bool = True):
     """Return a target(inputs) -> trace-dict callable for evaluate()."""
 
     def target(inputs: dict) -> dict:
@@ -58,6 +57,7 @@ def make_target(agent):
             {"messages": [{"role": "user", "content": question}]},
             config={"configurable": {"thread_id": thread_id}},
         )
-        return extract_trace(result)
-
+        trace = extract_trace(result)
+        trace["structured"] = structured
+        return trace
     return target
