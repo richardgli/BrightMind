@@ -8,45 +8,94 @@
 .chat-container {
     width: 360px;
     height: 500px;
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0px 4px 24px rgba(0, 0, 0, 0.2);
+    background: #F5F4EF;
+    border: 1px solid #E5E3DC;
+    box-shadow: 0px 8px 32px rgba(0, 0, 0, 0.12);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    color: #1A1A18;
 }
 
 .header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     padding: 12px;
+    border-bottom: 1px solid #8A8780;
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.header button {
+    border: none;
+    background: none;
+    font-size: 18px;
+    color: #86868b;
+    cursor: pointer;
 }
 
 .chat-message {
-    color: #000000;
+    padding: 14px 16px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #1A1A18;
+    border-bottom: 1px solid #ECEAE3;
+    white-space: pre-wrap;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
     display: flex;
-    padding: 12px;
+    flex-direction: column;
+    gap: 0;
+}
+
+.chat-message.incoming {
+    background: #FBFAF7;
 }
 
 .chat-box {
-    background: #666666;
     display: flex;
     align-items: center;
-    align-self: center;
-    cursor: text;
-    user-select: none;
+    padding: 10px 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .chat-box input {
+    flex: 1;
+    padding: 9px 14px;
     background: none;
     border: none;
     outline: none;
+    border: 1px solid #DAD8D0;
+    border-radius: 10px;
+    background: rgba(118, 118, 128, 0.12);
+    color: #1A1A18;
+    font-size: 15px;
+    font-family: inherit;
+}
+
+.chat-box input:focus {
+    border-color: #D97757;
 }
 
 .button {
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.25);
-    background: #4f46e5;
+    border: none;
+    box-shadow: 0px 4px 16px rgba(217, 119, 87, 0.35);
+    background: #D97757;
     cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;;
+}
+
+.button:hover {
+    transform: scale(1.05);
 }
