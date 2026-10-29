@@ -99,3 +99,10 @@
 .button:hover {
     transform: scale(1.05);
 }
+
+.role-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8A8780;
+    margin-bottom: 4px;
+}

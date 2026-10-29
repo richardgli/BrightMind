@@ -3,15 +3,16 @@ import './styles.css';
 
 export default function App() {
     const [expanded, setExpanded] = useState(false);
-    const [messages, setMessages] = useState<string[]>([
-        "testing message 1", "testing message 2", "three testing messages"
+    type Message = {role: "user" | "assistant"; text: string};
+    const [messages, setMessages] = useState<Message[]>([
+        {role: "assistant", text: "Hi! Ask me to quiz you or explain a topic."}
     ]);
     const [prompt, setPrompt] = useState<string>("");
 
     const handleSend = () => {
         const text = prompt.trim();
         if (!text) return;
-        setMessages((prev) => [...prev, text]);
+        setMessages((prev) => [...prev, {role: "user", text}]);
         setPrompt("");
     }
 
@@ -23,9 +24,19 @@ export default function App() {
                         <strong>BrightMind</strong>
                         <button onClick={() => setExpanded(false)}>-</button>
                     </header>
-                    {messages.map((message) => (
-                        <li className="chat-message">{message}</li>
-                    ))}
+                    <ul className="chat-messages">
+                        {messages.map((message, i) => (
+                            <li 
+                                className={`chat-message ${message.role === "assistant" ? "incoming" : ""}`}
+                                key={i}
+                            >
+                                <div className="role-label">
+                                    {message.role === "assistant" ? "BrightMind" : "You"}
+                                </div>
+                                <div>{message.text}</div>
+                            </li>
+                        ))}
+                    </ul>
                     <div className="chat-box">
                         <input
                             type="text"
