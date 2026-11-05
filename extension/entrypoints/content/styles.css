@@ -1,8 +1,7 @@
 .floating-box {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
     z-index: 2147483647;
+    font-size: 16px;
 }
 
 .chat-container {
