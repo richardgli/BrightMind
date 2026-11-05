@@ -5,6 +5,7 @@ type Message = {role: "user" | "assistant"; text: string};
 
 export default function App() {
     const [expanded, setExpanded] = useState(false);
+    const [closing, setClosing] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {role: "assistant", text: "Hi! Ask me to quiz you or explain a topic."}
     ]);
@@ -14,6 +15,24 @@ export default function App() {
     const dragging = useRef(false);
     const offset = useRef({ x: 0, y: 0 });
     const movedRef = useRef(false);
+    const isRight = position.x + 30 > window.innerWidth / 2;
+    const isBottom = position.y + 30 > window.innerHeight / 2;
+    const transformOrigin = `${isBottom ? 'bottom' : 'top'} ${isRight ? 'right' : 'left'}`;
+
+    const boxStyle: React.CSSProperties = {
+        left:   isRight  ? undefined : position.x,
+        right:  isRight  ? window.innerWidth - position.x - 56 : undefined,
+        top:    isBottom ? undefined : position.y,
+        bottom: isBottom ? window.innerHeight - position.y - 56 : undefined,
+    };
+
+    const closePanel = () => {
+        setClosing(true);
+        setTimeout(() => {
+            setExpanded(false);
+            setClosing(false);
+        }, 150);
+    };
 
     const onDragStart = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -49,10 +68,13 @@ export default function App() {
     return (
         <div 
             className="floating-box"
-            style={{ left: position.x, top: position.y }}
+            style={boxStyle}
         >
             {expanded ? (
-                <div className="chat-container">
+                <div
+                    className={`chat-container ${closing ? 'closing' : ''}`}
+                    style={{ transformOrigin }}
+                >
                     <header
                         className="header"
                         onMouseDown={onDragStart}
@@ -61,7 +83,7 @@ export default function App() {
                         <strong>BrightMind</strong>
                         <button
                             onMouseDown={(e) => e.stopPropagation()}
-                            onClick={() => setExpanded(false)}
+                            onClick={() => closePanel()}
                         >-</button>
                     </header>
                     <ul className="chat-messages">
