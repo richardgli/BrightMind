@@ -15,14 +15,14 @@ CASES: list[dict] = [
         "expected_route": ["research", "quiz"],
         "require_retrieval": True,
         "expect_quiz": True,
-        "forbid_route": [],
+        "forbid_route": ["tutor"],
     },
     {
         "question": "Quiz me on the attention mechanism in transformers.",
         "expected_route": ["research", "quiz"],
         "require_retrieval": True,
         "expect_quiz": True,
-        "forbid_route": [],
+        "forbid_route": ["tutor"],
     },
     # --- Routing: explanation requests should research, not quiz ---
     {
@@ -30,14 +30,14 @@ CASES: list[dict] = [
         "expected_route": ["research"],
         "require_retrieval": True,
         "expect_quiz": False,
-        "forbid_route": ["quiz"],
+        "forbid_route": ["quiz", "tutor"],
     },
     {
         "question": "Summarize the key idea of self-attention.",
         "expected_route": ["research"],
         "require_retrieval": True,
         "expect_quiz": False,
-        "forbid_route": ["quiz"],
+        "forbid_route": ["quiz", "tutor"],
     },
     # --- Output shape: a quiz must contain questions ---
     {
@@ -45,7 +45,25 @@ CASES: list[dict] = [
         "expected_route": ["research", "quiz"],
         "require_retrieval": True,
         "expect_quiz": True,
-        "forbid_route": [],
+        "forbid_route": ["tutor"],
+    },
+    # --- Tutoring: explicitly asking to be guided and not handing the answer ---
+    {
+        "question": "I don't get why my binary search returns -1. Don't give me the answer, help me figure it out.",
+        "expected_route": ["research", "tutor"],
+        "require_retrieval": True,
+        "expect_quiz": False,
+        "forbid_route": ["quiz"],
+    },
+    # --- Follow-ups: agent must be able to handle multiple turns
+    {
+        "turns": [
+            "Help me solve: what's the worst-case height of a BST with n nodes?",
+            "Is it log n?",
+            "So if it's unbalanced?",
+        ],
+        "expect_tutor_each_turn": True,
+        "expect_no_answer_leak": True,
     },
 ]
 
@@ -54,17 +72,30 @@ def build_examples() -> list[dict]:
     """Return examples in the shape create_examples expects."""
     examples = []
     for case in CASES:
-        examples.append(
-            {
-                "inputs": {"question": case["question"]},
-                "outputs": {
-                    "expected_route": case["expected_route"],
-                    "require_retrieval": case["require_retrieval"],
-                    "expect_quiz": case["expect_quiz"],
-                    "forbid_route": case["forbid_route"],
-                },
-            }
-        )
+        if "turns" in case:
+            examples.append(
+                {
+                    "inputs": {"question": case["question"]},
+                    "outputs": {
+                        "expected_route": case["expected_route"],
+                        "require_retrieval": case["require_retrieval"],
+                        "expect_quiz": case["expect_quiz"],
+                        "forbid_route": case["forbid_route"],
+                    },
+                }
+            )
+        else:
+            examples.append(
+                {
+                    "inputs": {"question": case["question"]},
+                    "outputs": {
+                        "expected_route": case["expected_route"],
+                        "require_retrieval": case["require_retrieval"],
+                        "expect_quiz": case["expect_quiz"],
+                        "forbid_route": case["forbid_route"],
+                    },
+                }
+            )
     return examples
 
 
