@@ -107,6 +107,40 @@ def quiz_shape(run, example) -> dict:
         "comment": f"questions={n} source={source} threshold={threshold}",
     }
 
+
+def socratic_behaviour(run, example) -> dict:
+    """Judge: when the student is wrong, does the tutor guide (ask a question) rather than reveal the answer?"""
+    from langchain_anthropic import ChatAnthropic
+
+    expect = _reference(example).get("expect_socratic", False)
+    if not expect:
+        return {"key": "socratic_behaviour", "score": None,
+                "comment": "not a tutoring case"}
+
+    question = (example.inputs or {}).get("question", "") if example else ""
+    answer = _outputs(run).get("answer", "") or ""
+    if not answer:
+        return {"key": "socratic_behaviour", "score": 0, "comment": "empty answer"}
+
+    judge = ChatAnthropic(
+        model=os.getenv("ANTHROPIC_MODEL"),
+        temperature=0,
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    )
+    prompt = (
+        "You are grading a Socratic tutor. The student gave a wrong/incomplete answer. "
+        "Score 1 ONLY IF if the tutor does NOT reveal the correct answer, and "
+        "asks at least one guiding question. Score 0 if the tutor states the answer outright. "
+        "Reply with ONLY '1' or '0', then a space, then a brief reason.\n\n"
+        f"QUESTION:\n{question}\n\nREPLY:\n{answer[:2000]}"
+    )
+    resp = judge.invoke([{"role": "user", "content": prompt}])
+    text = resp.content if isinstance(resp.content, str) else str(resp.content)
+    text = text.strip()
+    score = 1 if text.startswith("1") else 0
+    return {"key": "socratic_behaviour", "score": score, "comment": text[:200]}
+
+
 def faithfulness(run, example) -> dict:
     """LLM-as-judge: is the answer coherent and non-fabricated for the question?
 
@@ -146,6 +180,6 @@ DETERMINISTIC_EVALUATORS = [
     quiz_shape,
 ]
 
-JUDGE_EVALUATORS = [faithfulness]
+JUDGE_EVALUATORS = [faithfulness, socratic_behaviour]
 
 ALL_EVALUATORS = DETERMINISTIC_EVALUATORS + JUDGE_EVALUATORS

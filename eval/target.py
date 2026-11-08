@@ -61,3 +61,18 @@ def make_target(agent, structured: bool = True):
         trace["structured"] = structured
         return trace
     return target
+
+def make_multiturn_target(agent):
+    def target(inputs):
+        thread_id = f"eval-{uuid.uuid4().hex[:8]}"
+        replies, routes = [], []
+        for turn in inputs["turns"]:
+            result = agent.invoke(
+                {"messages": [{"role": "user", "content": turn}]},
+                config={"configurable": {"thread_id": thread_id}},
+            )
+            trace = extract_trace(result)
+            replies.append(trace["answer"])
+            routes.append(trace["route"])
+        return {"replies": replies, "routes": routes}
+    return target

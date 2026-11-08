@@ -16,6 +16,7 @@ CASES: list[dict] = [
         "require_retrieval": True,
         "expect_quiz": True,
         "forbid_route": ["tutor"],
+        "expect_socratic": False,
     },
     {
         "question": "Quiz me on the attention mechanism in transformers.",
@@ -23,6 +24,7 @@ CASES: list[dict] = [
         "require_retrieval": True,
         "expect_quiz": True,
         "forbid_route": ["tutor"],
+        "expect_socratic": False,
     },
     # --- Routing: explanation requests should research, not quiz ---
     {
@@ -31,6 +33,7 @@ CASES: list[dict] = [
         "require_retrieval": True,
         "expect_quiz": False,
         "forbid_route": ["quiz", "tutor"],
+        "expect_socratic": False,
     },
     {
         "question": "Summarize the key idea of self-attention.",
@@ -38,6 +41,7 @@ CASES: list[dict] = [
         "require_retrieval": True,
         "expect_quiz": False,
         "forbid_route": ["quiz", "tutor"],
+        "expect_socratic": False,
     },
     # --- Output shape: a quiz must contain questions ---
     {
@@ -46,6 +50,7 @@ CASES: list[dict] = [
         "require_retrieval": True,
         "expect_quiz": True,
         "forbid_route": ["tutor"],
+        "expect_socratic": False,
     },
     # --- Tutoring: explicitly asking to be guided and not handing the answer ---
     {
@@ -54,6 +59,7 @@ CASES: list[dict] = [
         "require_retrieval": True,
         "expect_quiz": False,
         "forbid_route": ["quiz"],
+        "expect_socratic": True,
     },
     # --- Follow-ups: agent must be able to handle multiple turns
     {
@@ -75,12 +81,10 @@ def build_examples() -> list[dict]:
         if "turns" in case:
             examples.append(
                 {
-                    "inputs": {"question": case["question"]},
+                    "inputs": {"turns": case["turns"]},
                     "outputs": {
-                        "expected_route": case["expected_route"],
-                        "require_retrieval": case["require_retrieval"],
-                        "expect_quiz": case["expect_quiz"],
-                        "forbid_route": case["forbid_route"],
+                        "expect_tutor_each_turn": case.get("expect_tutor_each_turn", True),
+                        "expect_no_answer_leak": case.get("expect_no_answer_leak", True)
                     },
                 }
             )
@@ -93,6 +97,7 @@ def build_examples() -> list[dict]:
                         "require_retrieval": case["require_retrieval"],
                         "expect_quiz": case["expect_quiz"],
                         "forbid_route": case["forbid_route"],
+                        "expect_socratic": case.get("expect_socratic", False),
                     },
                 }
             )
