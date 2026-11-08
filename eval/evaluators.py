@@ -173,6 +173,73 @@ def faithfulness(run, example) -> dict:
     return {"key": "faithfulness", "score": score, "comment": text[:200]}
 
 
+def tutor_each_turn(run, example) -> dict:
+    """Multi-turn: every follow-up turn should route through the tutor node.
+
+    `routes` is a list-of-lists: one route per user turn. The first turn may
+    include research (grounding), so we require 'tutor' in every follow-up
+    turn (turns after the first).
+    """
+    expect = _reference(example).get("expect_tutor_each_turn", False)
+    if not expect:
+        return {"key": "tutor_each_turn", "score": None,
+                "comment": "not a multi-turn tutoring case"}
+
+    routes = _outputs(run).get("routes", [])
+    if not routes:
+        return {"key": "tutor_each_turn", "score": 0, "comment": "no routes captured"}
+
+    followups = routes[1:] if len(routes) > 1 else []
+    if not followups:
+        return {"key": "tutor_each_turn", "score": 0,
+                "comment": f"no follow-up turns; routes={routes}"}
+
+    passed = all("tutor" in r for r in followups)
+    return {
+        "key": "tutor_each_turn",
+        "score": int(passed),
+        "comment": f"routes={routes}",
+    }
+
+
+def no_answer_leak(run, example) -> dict:
+    """Judge: across the tutoring turns before the final one, the tutor must
+    not hand over the final answer outright."""
+    from langchain_anthropic import ChatAnthropic
+
+    expect = _reference(example).get("expect_no_answer_leak", False)
+    if not expect:
+        return {"key": "no_answer_leak", "score": None,
+                "comment": "not a multi-turn tutoring case"}
+
+    replies = _outputs(run).get("replies", [])
+    if len(replies) < 2:
+        return {"key": "no_answer_leak", "score": 0,
+                "comment": f"need >=2 replies; got {len(replies)}"}
+
+    # Only the replies before the last turn must withhold the answer.
+    early = "\n\n---\n\n".join(replies[:-1])
+
+    judge = ChatAnthropic(
+        model=os.getenv("ANTHROPIC_MODEL"),
+        temperature=0,
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    )
+    prompt = (
+        "You are grading a Socratic tutor across its early replies (before the "
+        "student has reached the answer). Score 1 if the tutor GUIDES with "
+        "questions and does NOT state the final answer outright in these early "
+        "replies. Score 0 if it reveals the answer prematurely. Reply with ONLY "
+        "'1' or '0', then a space, then a brief reason.\n\n"
+        f"EARLY TUTOR REPLIES:\n{early[:3000]}"
+    )
+    resp = judge.invoke([{"role": "user", "content": prompt}])
+    text = resp.content if isinstance(resp.content, str) else str(resp.content)
+    text = text.strip()
+    score = 1 if text.startswith("1") else 0
+    return {"key": "no_answer_leak", "score": score, "comment": text[:200]}
+
+
 DETERMINISTIC_EVALUATORS = [
     routing_order,
     no_forbidden_route,
@@ -183,3 +250,6 @@ DETERMINISTIC_EVALUATORS = [
 JUDGE_EVALUATORS = [faithfulness, socratic_behaviour]
 
 ALL_EVALUATORS = DETERMINISTIC_EVALUATORS + JUDGE_EVALUATORS
+
+# Multi-turn tutoring suite evaluators (used by run.py --suite tutor).
+MULTITURN_EVALUATORS = [tutor_each_turn, no_answer_leak]

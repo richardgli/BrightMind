@@ -6,9 +6,13 @@ from dotenv import load_dotenv
 from langsmith import Client
 from langsmith.evaluation import evaluate
 
-from eval.dataset import ensure_dataset, DATASET_NAME
-from eval.target import make_target
-from eval.evaluators import DETERMINISTIC_EVALUATORS, ALL_EVALUATORS
+from eval.dataset import ensure_dataset
+from eval.target import make_target, make_multiturn_target
+from eval.evaluators import (
+    DETERMINISTIC_EVALUATORS,
+    ALL_EVALUATORS,
+    MULTITURN_EVALUATORS,
+)
 
 
 def get_baseline_agent():
@@ -25,22 +29,27 @@ def main() -> None:
     parser.add_argument("--prefix", default="supervisor-baseline",
                         help="set LangSmith experiment name prefix")
     parser.add_argument("--max-concurrency", type=int, default=2)
+    parser.add_argument("--suite", choices=["routing", "tutor"], default="routing")
     args = parser.parse_args()
 
     load_dotenv()
     client = Client()
 
-    ensure_dataset(client)
+    dataset_name = ensure_dataset(args.suite, client)
     if args.seed_only:
         return
 
-    evaluators = DETERMINISTIC_EVALUATORS if args.no_judge else ALL_EVALUATORS
     agent = get_baseline_agent()
-    target = make_target(agent, structured=True)
+    if args.suite == "routing":
+        target = make_target(agent, structured=True)
+        evaluators = DETERMINISTIC_EVALUATORS if args.no_judge else ALL_EVALUATORS
+    else:
+        target = make_multiturn_target(agent)
+        evaluators = MULTITURN_EVALUATORS
 
     results = evaluate(
         target,
-        data=DATASET_NAME,
+        data=dataset_name,
         evaluators=evaluators,
         experiment_prefix=args.prefix,
         max_concurrency=args.max_concurrency,

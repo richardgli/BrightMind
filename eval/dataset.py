@@ -2,135 +2,90 @@ from __future__ import annotations
 
 from langsmith import Client
 
-DATASET_NAME = "brightmind-baseline-v2"
-DATASET_DESCRIPTION = (
-    "BrightMind agent regression + quality eval. Routing order, retrieval "
-    "grounding, and output shape. Source of truth lives in eval/dataset.py."
-)
+from eval.cases.routing_cases import CASES as ROUTING_CASES, DESCRIPTION as ROUTING_DESCRIPTION
+from eval.cases.tutor_cases import CASES as TUTOR_CASES, DESCRIPTION as TUTOR_DESCRIPTION
 
-CASES: list[dict] = [
-    # --- Routing: quiz requests must research first, then quiz ---
-    {
-        "question": "Make me a 3-question quiz on binary search trees.",
-        "expected_route": ["research", "quiz"],
-        "require_retrieval": True,
-        "expect_quiz": True,
-        "forbid_route": ["tutor"],
-        "expect_socratic": False,
-    },
-    {
-        "question": "Quiz me on the attention mechanism in transformers.",
-        "expected_route": ["research", "quiz"],
-        "require_retrieval": True,
-        "expect_quiz": True,
-        "forbid_route": ["tutor"],
-        "expect_socratic": False,
-    },
-    # --- Routing: explanation requests should research, not quiz ---
-    {
-        "question": "Explain how a hash table handles collisions.",
-        "expected_route": ["research"],
-        "require_retrieval": True,
-        "expect_quiz": False,
-        "forbid_route": ["quiz", "tutor"],
-        "expect_socratic": False,
-    },
-    {
-        "question": "Summarize the key idea of self-attention.",
-        "expected_route": ["research"],
-        "require_retrieval": True,
-        "expect_quiz": False,
-        "forbid_route": ["quiz", "tutor"],
-        "expect_socratic": False,
-    },
-    # --- Output shape: a quiz must contain questions ---
-    {
-        "question": "Give me 2 practice questions about pointers in C.",
-        "expected_route": ["research", "quiz"],
-        "require_retrieval": True,
-        "expect_quiz": True,
-        "forbid_route": ["tutor"],
-        "expect_socratic": False,
-    },
-    # --- Tutoring: explicitly asking to be guided and not handing the answer ---
-    {
-        "question": "I don't get why my binary search returns -1. Don't give me the answer, help me figure it out.",
-        "expected_route": ["research", "tutor"],
-        "require_retrieval": True,
-        "expect_quiz": False,
-        "forbid_route": ["quiz"],
-        "expect_socratic": True,
-    },
-    # --- Follow-ups: agent must be able to handle multiple turns
-    {
-        "turns": [
-            "Help me solve: what's the worst-case height of a BST with n nodes?",
-            "Is it log n?",
-            "So if it's unbalanced?",
-        ],
-        "expect_tutor_each_turn": True,
-        "expect_no_answer_leak": True,
-    },
-]
-
-
-def build_examples() -> list[dict]:
-    """Return examples in the shape create_examples expects."""
+def build_single_turn_examples(key: str) -> list[dict]:
+    """Return single turn examples in the shape create_examples expects."""
+    spec = DATASETS[key]
     examples = []
-    for case in CASES:
-        if "turns" in case:
-            examples.append(
-                {
-                    "inputs": {"turns": case["turns"]},
-                    "outputs": {
-                        "expect_tutor_each_turn": case.get("expect_tutor_each_turn", True),
-                        "expect_no_answer_leak": case.get("expect_no_answer_leak", True)
-                    },
-                }
-            )
-        else:
-            examples.append(
-                {
-                    "inputs": {"question": case["question"]},
-                    "outputs": {
-                        "expected_route": case["expected_route"],
-                        "require_retrieval": case["require_retrieval"],
-                        "expect_quiz": case["expect_quiz"],
-                        "forbid_route": case["forbid_route"],
-                        "expect_socratic": case.get("expect_socratic", False),
-                    },
-                }
-            )
+    for case in spec["cases"]:
+        examples.append(
+            {
+                "inputs": {"question": case["question"]},
+                "outputs": {
+                    "expected_route": case["expected_route"],
+                    "require_retrieval": case["require_retrieval"],
+                    "expect_quiz": case["expect_quiz"],
+                    "forbid_route": case["forbid_route"],
+                    "expect_socratic": case.get("expect_socratic", False),
+                },
+            }
+        )
     return examples
 
 
-def ensure_dataset(client: Client | None = None) -> str:
+def build_multiturn_examples(key: str) -> list[dict]:
+    """Return multiturn examples in the shape create_examples expects."""
+    spec = DATASETS[key]
+    examples = []
+    for case in spec["cases"]:
+        examples.append(
+            {
+                "inputs": {"turns": case["turns"]},
+                "outputs": {
+                    "expect_tutor_each_turn": case.get("expect_tutor_each_turn", True),
+                    "expect_no_answer_leak": case.get("expect_no_answer_leak", True)
+                },
+            }
+        )
+    return examples
+
+
+DATASETS = {
+    "routing": {
+        "name": "brightmind-routing-v1",
+        "description": ROUTING_DESCRIPTION,
+        "cases": ROUTING_CASES,
+        "builder": build_single_turn_examples,
+    },
+    "tutor": {
+        "name": "brightmind-tutor-multiturn-v1",
+        "description": TUTOR_DESCRIPTION,
+        "cases": TUTOR_CASES,
+        "builder": build_multiturn_examples,
+    },
+}
+
+def ensure_dataset(key: str, client: Client | None = None) -> str:
     """Create the dataset if missing and (re)seed examples. Skips creation if the dataset already exists. 
     Returns the dataset name."""
+    spec = DATASETS[key]
     client = client or Client()
 
-    if client.has_dataset(dataset_name=DATASET_NAME):
-        existing = list(client.list_examples(dataset_name=DATASET_NAME))
+    if client.has_dataset(dataset_name=spec["name"]):
+        existing = list(client.list_examples(dataset_name=spec["name"]))
         if existing:
             print(
-                f"Dataset '{DATASET_NAME}' already exists with "
+                f"Dataset '{spec['name']}' already exists with "
                 f"{len(existing)} examples"
             )
-            return DATASET_NAME
-        dataset = client.read_dataset(dataset_name=DATASET_NAME)
+            return spec["name"]
+        dataset = client.read_dataset(dataset_name=spec["name"])
     else:
         dataset = client.create_dataset(
-            dataset_name=DATASET_NAME, description=DATASET_DESCRIPTION
+            dataset_name=spec["name"], description=spec["description"]
         )
-        print(f"Created dataset '{DATASET_NAME}'.")
+        print(f"Created dataset '{spec['name']}'.")
 
-    client.create_examples(dataset_id=dataset.id, examples=build_examples())
-    print(f"Seeded {len(CASES)} examples into '{DATASET_NAME}'.")
-    return DATASET_NAME
+    client.create_examples(dataset_id=dataset.id, examples=spec["builder"](key))
+    print(f"Seeded {len(spec['cases'])} examples into '{spec['name']}'.")
+    return spec["name"]
 
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
 
     load_dotenv()
-    ensure_dataset()
+    for key in DATASETS:
+        ensure_dataset(key)
