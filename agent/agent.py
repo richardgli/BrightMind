@@ -38,6 +38,19 @@ QUIZ_PROMPT = '''
     You turn provided study material into quiz questions.
 '''
 
+TUTOR_PROMPT = '''
+    You are a Socratic tutor. Guide the student to the answer themselves; never hand it over.
+
+    Rules:
+    - If the student's answer is wrong or incomplete, do NOT reveal the correct answer. Ask
+    ONE focused guiding question that exposes the gap or nudges them to the next step.
+    - If they are on the right track, affirm the correct part, then ask the next guiding question.
+    - If they have fully reached the correct answer, confirm it, give a one-line recap, and end your
+    message with exactly: SESSION_COMPLETE
+    - At most one guiding question per turn. Keep it short.
+    - Ground your hints in the study material; do not fabricate.
+'''
+
 _RESEARCH_AGENT = None
 
 model = ChatAnthropic(
@@ -49,11 +62,20 @@ model = ChatAnthropic(
 
 class RoutingDecision(BaseModel):
     plan: list[str] = Field(description="subtasks for the goal ONLY IF goal has not been accomplished yet")
-    next: Literal["research", "quiz", "FINISH"]
+    next: Literal["research", "quiz", "tutor", "FINISH"]
     reasoning: str
 
 
 def orchestrator(state):
+    last = state["messages"][-1] if state["messages"] else None
+    last_is_tutor = isinstance(last, AIMessage) and getattr(last, "name", None) == "tutor"
+
+    if last_is_tutor:
+        return {"next": "FINISH", "plan": state.get("plan", [])}
+
+    if state.get("tutor_active") and state.get("tutor_turns", 0) < 8:
+        return {"next": "tutor", "plan": state.get("plan", [])}
+    
     if state.get("step_count", 0) > 5:
         return {"next": "FINISH", "plan": [""], "step_count": state.get("step_count", 0) + 1}
 
@@ -62,12 +84,16 @@ def orchestrator(state):
         return {"next": "FINISH", "plan": state.get("plan", []), "step_count": state.get("step_count", 0) + 1}
 
     has_material = bool(state.get("research_material"))
-    status = f"Progress so far: research_material_gathered={has_material}, quiz_generated=False"
+    status = f"Progress so far: research_material_gathered={has_material}, quiz_generated=False, tutor_active={bool(state.get('tutor_active'))}"
+    latest_user = next(
+        (m.content for m in reversed(state["messages"])
+         if getattr(m, "type", None) == "human"),
+         state["messages"][0].content,
+    )
     router = model.with_structured_output(RoutingDecision)
     decision = router.invoke([
         {"role": "system", "content": ORCH_PROMPT},
-        # *state["messages"],
-        {"role": "user", "content": state["messages"][0].content},
+        {"role": "user", "content": latest_user},
         {"role": "user", "content": status},
     ])
 
@@ -125,6 +151,23 @@ def quiz(state):
     }
 
 
+def tutor(state):
+    msgs = [
+        {"role": "system", "content": TUTOR_PROMPT},
+        {"role": "system", "content": f"Study material for grounding:\n{state.get('research_material', '')}"},
+        *state["messages"],
+    ]
+    res = model.invoke(msgs)
+    text = res.content if isinstance(res.content, str) else str(res.content)
+    done = "SESSION_COMPLETE" in text
+
+    return {
+        "tutor_active": not done,
+        "tutor_turns": state.get("tutor_turns", 0) + 1,
+        "messages": [AIMessage(content=text, name="tutor")]
+    }
+
+
 def route(state):
     return state["next"]
 
@@ -149,14 +192,15 @@ def build_stategraph():
     g.add_node("orchestrator", orchestrator)
     g.add_node("research", research)
     g.add_node("quiz", quiz)
+    g.add_node("tutor", tutor)
 
     g.add_edge(START, "orchestrator")
     
     g.add_conditional_edges("orchestrator", route, {
-        "research": "research", "quiz": "quiz", "FINISH": END
+        "research": "research", "quiz": "quiz", "tutor": "tutor", "FINISH": END
     })
 
-    for node in ["research", "quiz"]:
+    for node in ["research", "quiz", "tutor"]:
         g.add_edge(node, "orchestrator")
 
     return g.compile(checkpointer=InMemorySaver())

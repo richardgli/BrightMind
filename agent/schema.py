@@ -11,6 +11,8 @@ class State(TypedDict, total=False):
     next: Literal["research", "quiz", "FINISH"]
     research_material: str
     quiz: dict
+    tutor_active: bool
+    tutor_turns: int
     step_count: int
 
 class QuizQuestion(BaseModel):
